@@ -1,0 +1,6 @@
+---
+pid: 15196
+cwd: |
+  C:\Users\User
+---
+PS C:\Users\User>

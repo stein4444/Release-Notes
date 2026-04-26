@@ -1,0 +1,164 @@
+@page "/"
+@inject NavigationManager Navigation
+
+<main class="page">
+    <section class="hero">
+        <h1>Release Notes Automation</h1>
+        <p>Генерація структурованих release notes з GitHub commit range.</p>
+    </section>
+
+    <section class="card">
+        <EditForm Model="_model" OnValidSubmit="GenerateAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid">
+                <div class="field">
+                    <label>Repository</label>
+                    <InputText @bind-Value="_model.Repository" placeholder="owner/repo" />
+                </div>
+                <div class="field">
+                    <label>Base Tag</label>
+                    <InputText @bind-Value="_model.BaseTag" placeholder="v1.0.0" />
+                </div>
+                <div class="field">
+                    <label>Target Tag</label>
+                    <InputText @bind-Value="_model.TargetTag" placeholder="v1.1.0" />
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn" type="submit" disabled="@_isLoading">@( _isLoading ? "Generating..." : "Generate Notes")</button>
+                @if (!string.IsNullOrWhiteSpace(_status))
+                {
+                    <p class="status @StatusClass">@_status</p>
+                }
+            </div>
+        </EditForm>
+    </section>
+
+    @if (_document is not null)
+    {
+        <section class="results">
+            <article class="card">
+                <h3>Release Summary</h3>
+                <div class="metrics">
+                    <div class="metric">
+                        <p class="label">Repository</p>
+                        <p class="value">@_document.Repository</p>
+                    </div>
+                    <div class="metric">
+                        <p class="label">Range</p>
+                        <p class="value">@_document.BaseTag → @_document.TargetTag</p>
+                    </div>
+                    <div class="metric">
+                        <p class="label">Entries</p>
+                        <p class="value">@_document.Entries.Count</p>
+                    </div>
+                    <div class="metric">
+                        <p class="label">Generated</p>
+                        <p class="value">@_document.GeneratedAt.LocalDateTime.ToString("g")</p>
+                    </div>
+                </div>
+            </article>
+
+            <article class="card">
+                <h3>AI Summary</h3>
+                <p class="summary">@_document.AiSummary</p>
+            </article>
+
+            <article class="card">
+                <h3>Entries</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Summary</th>
+                            <th>Breaking</th>
+                            <th>Confidence</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var entry in _document.Entries)
+                        {
+                            <tr>
+                                <td><span class="chip">@entry.Category</span></td>
+                                <td>@entry.Summary</td>
+                                <td>@(entry.IsBreakingChange ? "Yes" : "No")</td>
+                                <td>@entry.Confidence.ToString("0.00")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    }
+</main>
+
+@code {
+    private HttpClient _http = default!;
+    private GenerateModel _model = new()
+    {
+        Repository = "owner/repo",
+        BaseTag = "v1.0.0",
+        TargetTag = "v1.1.0"
+    };
+    private string _status = string.Empty;
+    private bool _isLoading;
+    private ReleaseNoteDocument? _document;
+    private string StatusClass => _status.Contains("failed", StringComparison.OrdinalIgnoreCase)
+        ? "error"
+        : _status.Contains("not ready", StringComparison.OrdinalIgnoreCase)
+            ? "warn"
+            : "ok";
+
+    protected override void OnInitialized()
+    {
+        _http = new HttpClient
+        {
+            BaseAddress = new Uri(Navigation.BaseUri)
+        };
+    }
+
+    private async Task GenerateAsync()
+    {
+        _isLoading = true;
+        _status = "Генерація запущена...";
+        _document = null;
+        try
+        {
+            var response = await _http.PostAsJsonAsync("/api/release-notes/generate", _model);
+            if (!response.IsSuccessStatusCode)
+            {
+                _status = "Помилка генерації release notes.";
+                return;
+            }
+
+            var accepted = await response.Content.ReadFromJsonAsync<AcceptedResponse>();
+            if (accepted is null)
+            {
+                _status = "Сервіс повернув порожню відповідь.";
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            _document = await _http.GetFromJsonAsync<ReleaseNoteDocument>($"/api/release-notes/{accepted.Id}");
+            _status = _document is null ? "Результат ще не готовий, оновіть запит." : "Готово.";
+        }
+        catch
+        {
+            _status = "Сталася помилка запиту до API.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private sealed class GenerateModel
+    {
+        public string Repository { get; set; } = string.Empty;
+        public string BaseTag { get; set; } = string.Empty;
+        public string TargetTag { get; set; } = string.Empty;
+    }
+    private sealed record AcceptedResponse(Guid Id);
+}
