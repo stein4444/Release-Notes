@@ -5,6 +5,7 @@ using ReleaseNotes.Infrastructure.Persistence;
 using ReleaseNotes.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.SectionName));
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddHostedService<ReleaseNotesSchedulerService>();

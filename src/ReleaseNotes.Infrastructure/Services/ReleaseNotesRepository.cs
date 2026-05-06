@@ -15,7 +15,20 @@ public sealed class ReleaseNotesRepository(ReleaseNotesDbContext dbContext) : IR
 
     public async Task UpdateJobAsync(ReleaseNoteJob job, CancellationToken cancellationToken)
     {
-        dbContext.Jobs.Update(job.ToEntity());
+        var entity = await dbContext.Jobs.FirstOrDefaultAsync(x => x.Id == job.Id, cancellationToken);
+        if (entity is null)
+        {
+            throw new InvalidOperationException($"Release note job {job.Id} was not found.");
+        }
+
+        entity.Repository = job.Repository;
+        entity.BaseTag = job.BaseTag;
+        entity.TargetTag = job.TargetTag;
+        entity.Status = job.Status;
+        entity.ErrorMessage = job.ErrorMessage;
+        entity.CreatedAt = job.CreatedAt;
+        entity.CompletedAt = job.CompletedAt;
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

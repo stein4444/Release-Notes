@@ -1,0 +1,47 @@
+<section class="card">
+    <h3>Генерація Release Notes</h3>
+    <p class="muted">Оберіть збережене підключення GitHub з бази та діапазон тегів. Якщо для запису токен не заданий, використовується глобальний <code>GitHub:Token</code> із конфігурації сервера.</p>
+
+    <EditForm Model="_model" OnValidSubmit="GenerateAsync" FormName="generate-release-notes-form">
+        <DataAnnotationsValidator />
+        <div class="form-grid">
+            <div class="field field-span-full">
+                <label>Репозиторій (із бази)</label>
+                <InputSelect @bind-Value="_model.RepositoryConnectionId">
+                    <option value="@Guid.Empty">— Оберіть підключення —</option>
+                    @foreach (var r in ActiveGithubRepositories)
+                    {
+                        <option value="@r.Id">@r.DisplayName (@r.RepositoryPath)</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="field">
+                <label>Base Tag</label>
+                <InputText @bind-Value="_model.BaseTag" placeholder="v1.0.0" />
+            </div>
+            <div class="field">
+                <label>Target Tag</label>
+                <InputText @bind-Value="_model.TargetTag" placeholder="v1.1.0" />
+            </div>
+        </div>
+        <div class="actions">
+            <button class="btn" type="submit" disabled="@IsGenerating">@( IsGenerating ? "Generating..." : "Generate Notes")</button>
+            @if (!string.IsNullOrWhiteSpace(_status))
+            {
+                <p class="status @StatusClass">@_status</p>
+            }
+        </div>
+    </EditForm>
+
+    @if (_document is not null)
+    {
+        <div class="results">
+            <article class="card">
+                <h4>Згенерований документ</h4>
+                <p><b>Repository:</b> @_document.Repository</p>
+                <p><b>Range:</b> @_document.BaseTag → @_document.TargetTag</p>
+                <p><b>Generated:</b> @_document.GeneratedAt.LocalDateTime.ToString("g")</p>
+            </article>
+        </div>
+    }
+</section>

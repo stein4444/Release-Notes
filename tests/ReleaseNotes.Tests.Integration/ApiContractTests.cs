@@ -7,7 +7,7 @@ public sealed class ApiContractTests
     [Fact]
     public void WebhookPayload_ShouldContainRequiredFields()
     {
-        var required = new[] { "Repository", "BaseTag", "TargetTag" };
+        var required = new[] { "RepositoryConnectionId", "BaseTag", "TargetTag" };
         Assert.Equal(3, required.Length);
     }
 }

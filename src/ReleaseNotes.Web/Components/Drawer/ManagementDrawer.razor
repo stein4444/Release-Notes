@@ -1,0 +1,97 @@
+<aside class="drawer @(IsOpen ? "open" : string.Empty)">
+    <div class="drawer-header">
+        <h3>Керування</h3>
+        <button class="close-btn" type="button" @onclick="OnCloseClicked">✕</button>
+    </div>
+    <div class="tab-row">
+        <button class="tab-btn @(ActiveTab == "repos" ? "active" : string.Empty)" type="button" @onclick="SetReposTab">Репозиторії</button>
+        <button class="tab-btn @(ActiveTab == "services" ? "active" : string.Empty)" type="button" @onclick="SetServicesTab">Інші сервіси</button>
+    </div>
+
+    @if (ActiveTab == "repos")
+    {
+        <section class="drawer-section">
+            <h4>Додати/Редагувати репозиторій</h4>
+            @if (!string.IsNullOrWhiteSpace(RepoFormStatus))
+            {
+                <p class="status @(RepoFormIsError ? "error" : "ok")">@RepoFormStatus</p>
+            }
+            <div class="field">
+                <label>Назва</label>
+                <input @bind="RepoForm.DisplayName" />
+            </div>
+            <div class="field">
+                <label>Провайдер</label>
+                <input @bind="RepoForm.Provider" placeholder="github" />
+            </div>
+            <div class="field">
+                <label>Repository Path</label>
+                <input @bind="RepoForm.RepositoryPath" placeholder="owner/repo" />
+            </div>
+            <div class="field">
+                <label>Токен (опційно)</label>
+                <input @bind="RepoForm.AccessToken" />
+            </div>
+            <label class="switch">
+                <input type="checkbox" @bind="RepoForm.IsActive" />
+                <span>Активний</span>
+            </label>
+            <div class="actions compact">
+                <button class="btn" type="button" @onclick="SaveRepositoryAsync">Зберегти</button>
+                @if (RepoForm.Id is not null)
+                {
+                    <button class="btn btn-secondary" type="button" @onclick="ClearRepoForm">Скасувати редагування</button>
+                }
+            </div>
+            <h4>Список репозиторіїв</h4>
+            @foreach (var repo in Repositories)
+            {
+                <div class="list-item">
+                    <div>
+                        <div class="item-title">@repo.DisplayName</div>
+                        <div class="item-sub">@repo.Provider / @repo.RepositoryPath</div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="link-btn" type="button" @onclick="() => EditRepository(repo)">Ред.</button>
+                        <button class="link-btn danger" type="button" @onclick="() => DeleteRepositoryAsync(repo.Id)">Вид.</button>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="drawer-section">
+            <h4>Додати інший сервіс</h4>
+            <div class="field">
+                <label>Провайдер</label>
+                <input @bind="IntegrationForm.Provider" placeholder="gitlab/bitbucket/azuredevops" />
+            </div>
+            <div class="field">
+                <label>Назва</label>
+                <input @bind="IntegrationForm.DisplayName" />
+            </div>
+            <div class="field">
+                <label>Налаштування JSON</label>
+                <textarea @bind="IntegrationForm.SettingsJson"></textarea>
+            </div>
+            <label class="switch">
+                <input type="checkbox" @bind="IntegrationForm.IsEnabled" />
+                <span>Увімкнено</span>
+            </label>
+            <div class="actions compact">
+                <button class="btn" type="button" @onclick="SaveIntegrationAsync">Додати сервіс</button>
+            </div>
+            <h4>Підключені сервіси</h4>
+            @foreach (var service in Integrations)
+            {
+                <div class="list-item">
+                    <div>
+                        <div class="item-title">@service.DisplayName</div>
+                        <div class="item-sub">@service.Provider</div>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+</aside>

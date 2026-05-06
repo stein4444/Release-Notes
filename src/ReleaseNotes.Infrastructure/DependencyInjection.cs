@@ -31,10 +31,6 @@ public static class DependencyInjection
         });
 
         services.AddMemoryCache();
-        services.AddStackExchangeRedisCache(opts =>
-        {
-            opts.Configuration = configuration.GetConnectionString("Redis") ?? "localhost:6379";
-        });
 
         var retryPolicy = HttpPolicyExtensions
             .HandleTransientHttpError()
@@ -44,9 +40,10 @@ public static class DependencyInjection
             .AddPolicyHandler(retryPolicy)
             .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
+        services.AddScoped<IRepositoryConnectionReader, RepositoryConnectionReader>();
         services.AddScoped<IRuleEngine, RuleEngine>();
         services.AddScoped<IReleaseNotesRepository, ReleaseNotesRepository>();
-        services.AddScoped<IDistributedLockService, RedisLockService>();
+        services.AddSingleton<IDistributedLockService, InMemoryLockService>();
         services.AddSingleton<IProgressNotifier, NullProgressNotifier>();
         return services;
     }

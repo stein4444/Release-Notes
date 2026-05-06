@@ -1,3 +1,3 @@
 namespace ReleaseNotes.Web.Models;
 
-public sealed record GenerateEndpointRequest(string Repository, string BaseTag, string TargetTag);
+public sealed record GenerateEndpointRequest(Guid RepositoryConnectionId, string BaseTag, string TargetTag);

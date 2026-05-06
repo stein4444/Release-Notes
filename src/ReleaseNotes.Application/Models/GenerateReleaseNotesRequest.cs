@@ -1,3 +1,7 @@
 namespace ReleaseNotes.Application.Models;
 
-public sealed record GenerateReleaseNotesRequest(string Repository, string BaseTag, string TargetTag, CancellationToken CancellationToken);
+public sealed record GenerateReleaseNotesRequest(
+    Guid RepositoryConnectionId,
+    string BaseTag,
+    string TargetTag,
+    CancellationToken CancellationToken);

@@ -9,13 +9,26 @@ public sealed class GenerateReleaseNotesUseCase(
     IGitSourceClient gitSourceClient,
     IRuleEngine ruleEngine,
     IReleaseNotesRepository repository,
+    IRepositoryConnectionReader repositoryConnectionReader,
     IDistributedLockService lockService,
     IProgressNotifier progressNotifier,
     ILogger<GenerateReleaseNotesUseCase> logger) : IGenerateReleaseNotesUseCase
 {
     public async Task<Guid> ExecuteAsync(GenerateReleaseNotesRequest request, CancellationToken cancellationToken)
     {
-        var lockKey = $"release-notes:{request.Repository}:{request.BaseTag}:{request.TargetTag}";
+        var connection = await repositoryConnectionReader.GetActiveAsync(request.RepositoryConnectionId, cancellationToken);
+        if (connection is null)
+        {
+            throw new InvalidOperationException("Repository connection not found or inactive.");
+        }
+
+        if (!string.Equals(connection.Provider, "github", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Provider '{connection.Provider}' is not supported for ingestion.");
+        }
+
+        var repositoryPath = connection.RepositoryPath;
+        var lockKey = $"release-notes:{request.RepositoryConnectionId}:{repositoryPath}:{request.BaseTag}:{request.TargetTag}";
         await using var acquiredLock = await lockService.TryAcquireAsync(lockKey, TimeSpan.FromMinutes(5), cancellationToken);
         if (acquiredLock is null)
         {
@@ -24,7 +37,7 @@ public sealed class GenerateReleaseNotesUseCase(
 
         var job = new ReleaseNoteJob
         {
-            Repository = request.Repository,
+            Repository = repositoryPath,
             BaseTag = request.BaseTag,
             TargetTag = request.TargetTag
         };
@@ -34,7 +47,14 @@ public sealed class GenerateReleaseNotesUseCase(
 
         try
         {
-            var artifacts = await gitSourceClient.GetArtifactsAsync(request.Repository, request.BaseTag, request.TargetTag, cancellationToken);
+            var fetchRequest = new GitHubCompareRequest(
+                repositoryPath,
+                request.BaseTag,
+                request.TargetTag,
+                connection.AccessToken,
+                connection.Id);
+
+            var artifacts = await gitSourceClient.GetArtifactsAsync(fetchRequest, cancellationToken);
             await progressNotifier.ReportAsync(job.Id, "ingestion", $"Fetched {artifacts.Count} artifacts", cancellationToken);
 
             var entries = new List<ReleaseNoteEntry>(artifacts.Count);
@@ -48,7 +68,7 @@ public sealed class GenerateReleaseNotesUseCase(
             var summary = BuildSummary(entries);
             var document = new ReleaseNoteDocument
             {
-                Repository = request.Repository,
+                Repository = repositoryPath,
                 BaseTag = request.BaseTag,
                 TargetTag = request.TargetTag,
                 AiSummary = summary,
@@ -65,7 +85,7 @@ public sealed class GenerateReleaseNotesUseCase(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Release note generation failed for {Repository} {Base}->{Target}", request.Repository, request.BaseTag, request.TargetTag);
+            logger.LogError(ex, "Release note generation failed for {Repository} {Base}->{Target}", repositoryPath, request.BaseTag, request.TargetTag);
             job.Status = "Failed";
             job.ErrorMessage = ex.Message;
             job.CompletedAt = DateTimeOffset.UtcNow;

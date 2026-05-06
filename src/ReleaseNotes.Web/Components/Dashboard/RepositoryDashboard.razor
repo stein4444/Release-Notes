@@ -1,0 +1,33 @@
+<section class="card">
+    <div class="actions">
+        <button class="btn btn-secondary" type="button" @onclick="LoadDashboardAsync">Оновити дашборд</button>
+        @if (!string.IsNullOrWhiteSpace(Status))
+        {
+            <p class="status @StatusClass">@Status</p>
+        }
+    </div>
+</section>
+
+<section class="repo-grid">
+    @foreach (var item in Items)
+    {
+        <article class="card repo-card">
+            <h3>@(string.IsNullOrWhiteSpace(item.DisplayName) ? item.Repository : item.DisplayName)</h3>
+            @if (!string.IsNullOrWhiteSpace(item.DisplayName))
+            {
+                <p class="muted repo-path">@item.Repository</p>
+            }
+            <p>Документів: <b>@item.DocumentsCount</b></p>
+            <p>Запусків: <b>@item.JobsCount</b></p>
+            <p>Останній статус: <b>@item.LastJobStatus</b></p>
+            <p>Остання генерація: <b>@(item.LastGeneratedAt?.LocalDateTime.ToString("g") ?? "-")</b></p>
+        </article>
+    }
+    @if (Items.Count == 0)
+    {
+        <article class="card repo-card">
+            <h3>Немає даних</h3>
+            <p>Ще не згенеровано жодного release notes.</p>
+        </article>
+    }
+</section>

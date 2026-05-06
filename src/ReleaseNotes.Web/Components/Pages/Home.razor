@@ -1,164 +1,55 @@
 @page "/"
-@inject NavigationManager Navigation
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode())
+
+<button class="menu-btn" type="button" @onclick="ToggleDrawer">☰</button>
+
+<ManagementDrawer IsOpen="@IsDrawerOpen"
+                  OnClose="CloseDrawerAsync"
+                  OnRepositoriesChanged="OnRepositoriesChangedAsync" />
 
 <main class="page">
     <section class="hero">
-        <h1>Release Notes Automation</h1>
-        <p>Генерація структурованих release notes з GitHub commit range.</p>
+        <h1>Release Notes Automation Dashboard</h1>
+        <p class="muted">Зведення та генерація по підключеннях із бази. Репозиторії додаються через меню ☰ → «Репозиторії».</p>
     </section>
 
-    <section class="card">
-        <EditForm Model="_model" OnValidSubmit="GenerateAsync">
-            <DataAnnotationsValidator />
-            <div class="form-grid">
-                <div class="field">
-                    <label>Repository</label>
-                    <InputText @bind-Value="_model.Repository" placeholder="owner/repo" />
-                </div>
-                <div class="field">
-                    <label>Base Tag</label>
-                    <InputText @bind-Value="_model.BaseTag" placeholder="v1.0.0" />
-                </div>
-                <div class="field">
-                    <label>Target Tag</label>
-                    <InputText @bind-Value="_model.TargetTag" placeholder="v1.1.0" />
-                </div>
-            </div>
-            <div class="actions">
-                <button class="btn" type="submit" disabled="@_isLoading">@( _isLoading ? "Generating..." : "Generate Notes")</button>
-                @if (!string.IsNullOrWhiteSpace(_status))
-                {
-                    <p class="status @StatusClass">@_status</p>
-                }
-            </div>
-        </EditForm>
+    <section class="tab-row page-tabs">
+        <button class="tab-btn @(MainTab == "dashboard" ? "active" : string.Empty)" type="button" @onclick="SetDashboardTab">Зведення</button>
+        <button class="tab-btn @(MainTab == "generation" ? "active" : string.Empty)" type="button" @onclick="SetGenerationTab">Генерація Release Notes</button>
     </section>
 
-    @if (_document is not null)
+    @if (MainTab == "dashboard")
     {
-        <section class="results">
-            <article class="card">
-                <h3>Release Summary</h3>
-                <div class="metrics">
-                    <div class="metric">
-                        <p class="label">Repository</p>
-                        <p class="value">@_document.Repository</p>
-                    </div>
-                    <div class="metric">
-                        <p class="label">Range</p>
-                        <p class="value">@_document.BaseTag → @_document.TargetTag</p>
-                    </div>
-                    <div class="metric">
-                        <p class="label">Entries</p>
-                        <p class="value">@_document.Entries.Count</p>
-                    </div>
-                    <div class="metric">
-                        <p class="label">Generated</p>
-                        <p class="value">@_document.GeneratedAt.LocalDateTime.ToString("g")</p>
-                    </div>
-                </div>
-            </article>
-
-            <article class="card">
-                <h3>AI Summary</h3>
-                <p class="summary">@_document.AiSummary</p>
-            </article>
-
-            <article class="card">
-                <h3>Entries</h3>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                        <tr>
-                            <th>Category</th>
-                            <th>Summary</th>
-                            <th>Breaking</th>
-                            <th>Confidence</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var entry in _document.Entries)
-                        {
-                            <tr>
-                                <td><span class="chip">@entry.Category</span></td>
-                                <td>@entry.Summary</td>
-                                <td>@(entry.IsBreakingChange ? "Yes" : "No")</td>
-                                <td>@entry.Confidence.ToString("0.00")</td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-            </article>
-        </section>
+        <RepositoryDashboard @key="_dashboardRefresh" />
+    }
+    else
+    {
+        <ReleaseNotesGenerator @key="_generatorRefresh" />
     }
 </main>
 
 @code {
-    private HttpClient _http = default!;
-    private GenerateModel _model = new()
-    {
-        Repository = "owner/repo",
-        BaseTag = "v1.0.0",
-        TargetTag = "v1.1.0"
-    };
-    private string _status = string.Empty;
-    private bool _isLoading;
-    private ReleaseNoteDocument? _document;
-    private string StatusClass => _status.Contains("failed", StringComparison.OrdinalIgnoreCase)
-        ? "error"
-        : _status.Contains("not ready", StringComparison.OrdinalIgnoreCase)
-            ? "warn"
-            : "ok";
+    private bool IsDrawerOpen;
+    private string MainTab { get; set; } = "dashboard";
+    private int _generatorRefresh;
+    private int _dashboardRefresh;
 
-    protected override void OnInitialized()
+    private void ToggleDrawer() => IsDrawerOpen = !IsDrawerOpen;
+
+    private Task CloseDrawerAsync()
     {
-        _http = new HttpClient
-        {
-            BaseAddress = new Uri(Navigation.BaseUri)
-        };
+        IsDrawerOpen = false;
+        return Task.CompletedTask;
     }
 
-    private async Task GenerateAsync()
+    private void SetDashboardTab() => MainTab = "dashboard";
+
+    private void SetGenerationTab() => MainTab = "generation";
+
+    private Task OnRepositoriesChangedAsync()
     {
-        _isLoading = true;
-        _status = "Генерація запущена...";
-        _document = null;
-        try
-        {
-            var response = await _http.PostAsJsonAsync("/api/release-notes/generate", _model);
-            if (!response.IsSuccessStatusCode)
-            {
-                _status = "Помилка генерації release notes.";
-                return;
-            }
-
-            var accepted = await response.Content.ReadFromJsonAsync<AcceptedResponse>();
-            if (accepted is null)
-            {
-                _status = "Сервіс повернув порожню відповідь.";
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            _document = await _http.GetFromJsonAsync<ReleaseNoteDocument>($"/api/release-notes/{accepted.Id}");
-            _status = _document is null ? "Результат ще не готовий, оновіть запит." : "Готово.";
-        }
-        catch
-        {
-            _status = "Сталася помилка запиту до API.";
-        }
-        finally
-        {
-            _isLoading = false;
-        }
+        _generatorRefresh++;
+        _dashboardRefresh++;
+        return InvokeAsync(StateHasChanged);
     }
-
-    private sealed class GenerateModel
-    {
-        public string Repository { get; set; } = string.Empty;
-        public string BaseTag { get; set; } = string.Empty;
-        public string TargetTag { get; set; } = string.Empty;
-    }
-    private sealed record AcceptedResponse(Guid Id);
 }
