@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ReleaseNotes.Application.Interfaces;
+using ReleaseNotes.Infrastructure.Auth;
 using ReleaseNotes.Infrastructure.Clients;
 using ReleaseNotes.Infrastructure.Options;
 using ReleaseNotes.Infrastructure.Persistence;
@@ -13,7 +14,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<GitHubOptions>(configuration.GetSection("GitHub"));
+        services.Configure<GitHubOptions>(configuration.GetSection(GitHubOptions.SectionName));
+        services.AddJwtAuthentication(configuration);
 
         services.AddDbContext<ReleaseNotesDbContext>(opts =>
         {

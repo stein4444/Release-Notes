@@ -10,13 +10,18 @@ public sealed class GenerateReleaseNotesUseCase(
     IRuleEngine ruleEngine,
     IReleaseNotesRepository repository,
     IRepositoryConnectionReader repositoryConnectionReader,
+    ICurrentUserAccessor currentUser,
     IDistributedLockService lockService,
     IProgressNotifier progressNotifier,
     ILogger<GenerateReleaseNotesUseCase> logger) : IGenerateReleaseNotesUseCase
 {
     public async Task<Guid> ExecuteAsync(GenerateReleaseNotesRequest request, CancellationToken cancellationToken)
     {
-        var connection = await repositoryConnectionReader.GetActiveAsync(request.RepositoryConnectionId, cancellationToken);
+        var userId = request.ActingUserId ?? currentUser.GetRequiredUserId();
+        var connection = await repositoryConnectionReader.GetActiveForUserAsync(
+            request.RepositoryConnectionId,
+            userId,
+            cancellationToken);
         if (connection is null)
         {
             throw new InvalidOperationException("Repository connection not found or inactive.");
@@ -37,6 +42,7 @@ public sealed class GenerateReleaseNotesUseCase(
 
         var job = new ReleaseNoteJob
         {
+            OwnerUserId = userId,
             Repository = repositoryPath,
             BaseTag = request.BaseTag,
             TargetTag = request.TargetTag
@@ -68,6 +74,7 @@ public sealed class GenerateReleaseNotesUseCase(
             var summary = BuildSummary(entries);
             var document = new ReleaseNoteDocument
             {
+                OwnerUserId = userId,
                 Repository = repositoryPath,
                 BaseTag = request.BaseTag,
                 TargetTag = request.TargetTag,

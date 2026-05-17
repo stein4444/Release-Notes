@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ReleaseNotes.Application.Interfaces;
@@ -6,7 +7,7 @@ using ReleaseNotes.Application.Models;
 namespace ReleaseNotes.Worker;
 
 public sealed class ReleaseNotesSchedulerService(
-    IGenerateReleaseNotesUseCase useCase,
+    IServiceScopeFactory scopeFactory,
     IOptions<SchedulerOptions> options,
     ILogger<ReleaseNotesSchedulerService> logger) : BackgroundService
 {
@@ -25,12 +26,27 @@ public sealed class ReleaseNotesSchedulerService(
                                  || (!string.IsNullOrWhiteSpace(baseT) && !string.IsNullOrWhiteSpace(targetT)));
                 if (canRun)
                 {
+                    await using var scope = scopeFactory.CreateAsyncScope();
+                    var connectionReader = scope.ServiceProvider.GetRequiredService<IRepositoryConnectionReader>();
+                    var useCase = scope.ServiceProvider.GetRequiredService<IGenerateReleaseNotesUseCase>();
+                    var ownerId = await connectionReader.GetOwnerUserIdAsync(
+                        scheduler.RepositoryConnectionId,
+                        stoppingToken);
+                    if (ownerId is null)
+                    {
+                        logger.LogWarning(
+                            "Scheduler: connection {ConnectionId} not found or has no owner.",
+                            scheduler.RepositoryConnectionId);
+                        continue;
+                    }
+
                     await useCase.ExecuteAsync(
                         new GenerateReleaseNotesRequest(
                             scheduler.RepositoryConnectionId,
                             baseT,
                             targetT,
-                            stoppingToken),
+                            stoppingToken,
+                            ownerId.Value),
                         stoppingToken);
                 }
             }

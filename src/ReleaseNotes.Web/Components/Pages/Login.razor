@@ -1,0 +1,100 @@
+@page "/login"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode())
+@using ReleaseNotes.Web.Models
+@inject IReleaseNotesAppApi Api
+@inject AuthSession Auth
+@inject NavigationManager Navigation
+
+<main class="page auth-page">
+    <section class="card auth-card">
+        <h2>@(IsRegister ? "Реєстрація" : "Вхід")</h2>
+        <p class="muted">JWT-авторизація. Кожен користувач бачить лише свої репозиторії та коміти.</p>
+
+        <div class="tab-row page-tabs">
+            <button class="tab-btn @(!IsRegister ? "active" : string.Empty)" type="button" @onclick="() => IsRegister = false">Вхід</button>
+            <button class="tab-btn @(IsRegister ? "active" : string.Empty)" type="button" @onclick="() => IsRegister = true">Реєстрація</button>
+        </div>
+
+        <EditForm Model="_model" OnValidSubmit="SubmitAsync">
+            @if (IsRegister)
+            {
+                <div class="field">
+                    <label>Ім'я</label>
+                    <InputText @bind-Value="_model.DisplayName" />
+                </div>
+            }
+            <div class="field">
+                <label>Email</label>
+                <InputText @bind-Value="_model.Email" />
+            </div>
+            <div class="field">
+                <label>Пароль</label>
+                <InputText type="password" @bind-Value="_model.Password" />
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <p class="status error">@_error</p>
+            }
+            <div class="actions">
+                <button class="btn" type="submit" disabled="@_busy">@(_busy ? "..." : (IsRegister ? "Зареєструватися" : "Увійти"))</button>
+            </div>
+        </EditForm>
+    </section>
+</main>
+
+@code {
+    private bool IsRegister { get; set; }
+    private bool _busy;
+    private string _error = string.Empty;
+    private AuthFormModel _model = new();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/", replace: true);
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _error = string.Empty;
+        try
+        {
+            var result = IsRegister
+                ? await Api.RegisterAsync(_model.Email, _model.Password, _model.DisplayName)
+                : await Api.LoginAsync(_model.Email, _model.Password);
+
+            if (!result.Ok || result.Data is null)
+            {
+                _error = string.IsNullOrWhiteSpace(result.Error)
+                    ? (IsRegister ? "Не вдалося зареєструватися." : "Невірний email або пароль.")
+                    : result.Error;
+                return;
+            }
+
+            Auth.Set(result.Data);
+            await InvokeAsync(() =>
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return Task.CompletedTask;
+            });
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class AuthFormModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+    }
+}

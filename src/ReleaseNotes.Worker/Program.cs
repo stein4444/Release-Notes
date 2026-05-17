@@ -16,6 +16,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ReleaseNotesDbContext>();
     await db.Database.EnsureCreatedAsync();
+    await DatabaseAuthSchemaPatcher.ApplyAsync(db);
 }
 
 await app.RunAsync();

@@ -1,9 +1,14 @@
 using ReleaseNotes.Domain.Models;
+using ReleaseNotes.Web.Models;
 
 namespace ReleaseNotes.Web.Services;
 
 public interface IReleaseNotesAppApi
 {
+    Task<AuthClientResult> LoginAsync(string email, string password, CancellationToken cancellationToken = default);
+
+    Task<AuthClientResult> RegisterAsync(string email, string password, string displayName, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<RepositoryListDto>> GetRepositoriesAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<DashboardRowDto>> GetDashboardAsync(CancellationToken cancellationToken = default);

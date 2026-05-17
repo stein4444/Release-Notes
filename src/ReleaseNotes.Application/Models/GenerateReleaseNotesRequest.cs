@@ -4,4 +4,5 @@ public sealed record GenerateReleaseNotesRequest(
     Guid RepositoryConnectionId,
     string BaseTag,
     string TargetTag,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken,
+    Guid? ActingUserId = null);

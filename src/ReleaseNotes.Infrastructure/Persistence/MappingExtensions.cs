@@ -9,6 +9,7 @@ public static class MappingExtensions
     public static ReleaseNoteJobEntity ToEntity(this ReleaseNoteJob model) => new()
     {
         Id = model.Id,
+        OwnerUserId = model.OwnerUserId,
         Repository = model.Repository,
         BaseTag = model.BaseTag,
         TargetTag = model.TargetTag,
@@ -21,6 +22,7 @@ public static class MappingExtensions
     public static ReleaseNoteDocumentEntity ToEntity(this ReleaseNoteDocument model) => new()
     {
         Id = model.Id,
+        OwnerUserId = model.OwnerUserId,
         Repository = model.Repository,
         BaseTag = model.BaseTag,
         TargetTag = model.TargetTag,

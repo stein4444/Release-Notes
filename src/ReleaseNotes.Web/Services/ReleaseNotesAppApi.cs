@@ -1,12 +1,86 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using ReleaseNotes.Domain.Models;
+using ReleaseNotes.Web.Models;
 
 namespace ReleaseNotes.Web.Services;
 
-public sealed class ReleaseNotesAppApi(HttpClient http) : IReleaseNotesAppApi
+public sealed class ReleaseNotesAppApi(HttpClient http, AuthSession authSession) : IReleaseNotesAppApi
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    public async Task<AuthClientResult> LoginAsync(string email, string password, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync("/api/auth/login", new { email, password }, cancellationToken);
+        return await MapAuthResponseAsync(response, cancellationToken);
+    }
+
+    public async Task<AuthClientResult> RegisterAsync(
+        string email,
+        string password,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync(
+            "/api/auth/register",
+            new { email, password, displayName },
+            cancellationToken);
+        return await MapAuthResponseAsync(response, cancellationToken);
+    }
+
+    private static async Task<AuthClientResult> MapAuthResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            return AuthClientResult.Failure(await ReadErrorMessageAsync(response, cancellationToken));
+        }
+
+        var data = await response.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions, cancellationToken);
+        return data is null
+            ? AuthClientResult.Failure("Порожня відповідь сервера.")
+            : AuthClientResult.Success(data);
+    }
+
+    private static async Task<string> ReadErrorMessageAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return $"Помилка сервера ({(int)response.StatusCode} {response.ReasonPhrase}).";
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("message", out var messageProp))
+            {
+                var text = messageProp.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+            }
+
+            if (doc.RootElement.TryGetProperty("title", out var titleProp))
+            {
+                var title = titleProp.GetString();
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    return title;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // not JSON
+        }
+
+        return body.Length > 500 ? body[..500] : body;
+    }
 
     public async Task<IReadOnlyList<RepositoryListDto>> GetRepositoriesAsync(CancellationToken cancellationToken = default)
     {

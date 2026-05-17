@@ -15,7 +15,9 @@ public sealed class ReleaseNotesRepository(ReleaseNotesDbContext dbContext) : IR
 
     public async Task UpdateJobAsync(ReleaseNoteJob job, CancellationToken cancellationToken)
     {
-        var entity = await dbContext.Jobs.FirstOrDefaultAsync(x => x.Id == job.Id, cancellationToken);
+        var entity = await dbContext.Jobs.FirstOrDefaultAsync(
+            x => x.Id == job.Id && x.OwnerUserId == job.OwnerUserId,
+            cancellationToken);
         if (entity is null)
         {
             throw new InvalidOperationException($"Release note job {job.Id} was not found.");
@@ -38,15 +40,20 @@ public sealed class ReleaseNotesRepository(ReleaseNotesDbContext dbContext) : IR
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<ReleaseNoteDocument?> GetDocumentAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<ReleaseNoteDocument?> GetDocumentAsync(Guid id, Guid ownerUserId, CancellationToken cancellationToken)
     {
-        var entity = await dbContext.Documents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        var entity = await dbContext.Documents.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerUserId == ownerUserId, cancellationToken);
         return entity?.ToModel();
     }
 
-    public async Task<IReadOnlyCollection<ReleaseNoteDocument>> GetLatestAsync(int count, CancellationToken cancellationToken)
+    public async Task<IReadOnlyCollection<ReleaseNoteDocument>> GetLatestAsync(
+        int count,
+        Guid ownerUserId,
+        CancellationToken cancellationToken)
     {
         var entities = await dbContext.Documents.AsNoTracking()
+            .Where(x => x.OwnerUserId == ownerUserId)
             .OrderByDescending(x => x.GeneratedAt)
             .Take(count)
             .ToListAsync(cancellationToken);

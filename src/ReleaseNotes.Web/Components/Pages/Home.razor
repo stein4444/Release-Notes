@@ -1,37 +1,58 @@
 @page "/"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode())
+@using ReleaseNotes.Web.Services
+@inject AuthSession Auth
+@inject NavigationManager Navigation
 
-<button class="menu-btn" type="button" @onclick="ToggleDrawer">☰</button>
+@if (!Auth.IsAuthenticated)
+{
+    <p class="muted page">Завантаження...</p>
+}
+else
+{
+    <button class="menu-btn" type="button" @onclick="ToggleDrawer">☰</button>
 
-<ManagementDrawer IsOpen="@IsDrawerOpen"
-                  OnClose="CloseDrawerAsync"
-                  OnRepositoriesChanged="OnRepositoriesChangedAsync" />
+    <ManagementDrawer IsOpen="@IsDrawerOpen"
+                      OnClose="CloseDrawerAsync"
+                      OnRepositoriesChanged="OnRepositoriesChangedAsync" />
 
-<main class="page">
-    <section class="hero">
-        <h1>Release Notes Automation Dashboard</h1>
-        <p class="muted">На вкладці «Зведення» — список комітів (повідомлення + дата) з останньої генерації. Репозиторії — меню ☰ → «Репозиторії».</p>
-    </section>
+    <main class="page">
+        <section class="hero">
+            <h1>Release Notes Automation Dashboard</h1>
+            <p class="muted">На вкладці «Зведення» — список комітів (повідомлення + дата) з останньої генерації. Репозиторії — меню ☰ → «Репозиторії».</p>
+            <p class="user-bar">
+                <span class="muted">@Auth.Email</span>
+                <button class="btn btn-secondary" type="button" @onclick="LogoutAsync">Вийти</button>
+            </p>
+        </section>
 
-    <section class="tab-row page-tabs">
-        <button class="tab-btn @(MainTab == "dashboard" ? "active" : string.Empty)" type="button" @onclick="SetDashboardTab">Зведення</button>
-        <button class="tab-btn @(MainTab == "generation" ? "active" : string.Empty)" type="button" @onclick="SetGenerationTab">Генерація Release Notes</button>
-    </section>
+        <section class="tab-row page-tabs">
+            <button class="tab-btn @(MainTab == "dashboard" ? "active" : string.Empty)" type="button" @onclick="SetDashboardTab">Зведення</button>
+            <button class="tab-btn @(MainTab == "generation" ? "active" : string.Empty)" type="button" @onclick="SetGenerationTab">Генерація Release Notes</button>
+        </section>
 
-    @* Обидва лишаються в DOM — інакше при перемиканні вкладок Blazor знищує генератор і зникають коміти / документ. *@
-    <div class="tab-panel" hidden="@(MainTab != "dashboard")">
-        <RepositoryDashboard @key="_dashboardRefresh" />
-    </div>
-    <div class="tab-panel" hidden="@(MainTab != "generation")">
-        <ReleaseNotesGenerator @key="_generatorRefresh" />
-    </div>
-</main>
+        <div class="tab-panel" hidden="@(MainTab != "dashboard")">
+            <RepositoryDashboard @key="_dashboardRefresh" />
+        </div>
+        <div class="tab-panel" hidden="@(MainTab != "generation")">
+            <ReleaseNotesGenerator @key="_generatorRefresh" />
+        </div>
+    </main>
+}
 
 @code {
     private bool IsDrawerOpen;
     private string MainTab { get; set; } = "dashboard";
     private int _generatorRefresh;
     private int _dashboardRefresh;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && !Auth.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
 
     private void ToggleDrawer() => IsDrawerOpen = !IsDrawerOpen;
 
@@ -44,6 +65,12 @@
     private void SetDashboardTab() => MainTab = "dashboard";
 
     private void SetGenerationTab() => MainTab = "generation";
+
+    private void LogoutAsync()
+    {
+        Auth.Clear();
+        Navigation.NavigateTo("/login", replace: true);
+    }
 
     private Task OnRepositoriesChangedAsync()
     {
