@@ -4,7 +4,7 @@ using ReleaseNotes.Infrastructure.Persistence.Entities;
 
 namespace ReleaseNotes.Infrastructure.Persistence;
 
-internal static class MappingExtensions
+public static class MappingExtensions
 {
     public static ReleaseNoteJobEntity ToEntity(this ReleaseNoteJob model) => new()
     {
@@ -26,7 +26,7 @@ internal static class MappingExtensions
         TargetTag = model.TargetTag,
         AiSummary = model.AiSummary,
         GeneratedAt = model.GeneratedAt,
-        EntriesJson = JsonSerializer.Serialize(model.Entries)
+        EntriesJson = JsonSerializer.Serialize(model.Entries, ReleaseNoteJson.EntryOptions)
     };
 
     public static ReleaseNoteDocument ToModel(this ReleaseNoteDocumentEntity entity) => new()
@@ -37,6 +37,7 @@ internal static class MappingExtensions
         TargetTag = entity.TargetTag,
         AiSummary = entity.AiSummary,
         GeneratedAt = entity.GeneratedAt,
-        Entries = JsonSerializer.Deserialize<IReadOnlyCollection<ReleaseNoteEntry>>(entity.EntriesJson) ?? Array.Empty<ReleaseNoteEntry>()
+        Entries = JsonSerializer.Deserialize<IReadOnlyCollection<ReleaseNoteEntry>>(entity.EntriesJson, ReleaseNoteJson.EntryOptions)
+                  ?? Array.Empty<ReleaseNoteEntry>()
     };
 }

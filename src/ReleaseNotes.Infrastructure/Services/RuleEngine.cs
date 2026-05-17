@@ -34,6 +34,6 @@ public sealed class RuleEngine : IRuleEngine
             category = ChangeCategory.Improvement;
         }
 
-        return new ReleaseNoteEntry(artifact.Id, category, artifact.Title, breaking, 0.7d);
+        return new ReleaseNoteEntry(artifact.Id, category, artifact.Title, breaking, 0.7d, artifact.CreatedAt);
     }
 }

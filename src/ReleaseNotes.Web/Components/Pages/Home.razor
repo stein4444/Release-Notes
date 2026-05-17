@@ -10,7 +10,7 @@
 <main class="page">
     <section class="hero">
         <h1>Release Notes Automation Dashboard</h1>
-        <p class="muted">Зведення та генерація по підключеннях із бази. Репозиторії додаються через меню ☰ → «Репозиторії».</p>
+        <p class="muted">На вкладці «Зведення» — список комітів (повідомлення + дата) з останньої генерації. Репозиторії — меню ☰ → «Репозиторії».</p>
     </section>
 
     <section class="tab-row page-tabs">
@@ -18,14 +18,13 @@
         <button class="tab-btn @(MainTab == "generation" ? "active" : string.Empty)" type="button" @onclick="SetGenerationTab">Генерація Release Notes</button>
     </section>
 
-    @if (MainTab == "dashboard")
-    {
+    @* Обидва лишаються в DOM — інакше при перемиканні вкладок Blazor знищує генератор і зникають коміти / документ. *@
+    <div class="tab-panel" hidden="@(MainTab != "dashboard")">
         <RepositoryDashboard @key="_dashboardRefresh" />
-    }
-    else
-    {
+    </div>
+    <div class="tab-panel" hidden="@(MainTab != "generation")">
         <ReleaseNotesGenerator @key="_generatorRefresh" />
-    }
+    </div>
 </main>
 
 @code {

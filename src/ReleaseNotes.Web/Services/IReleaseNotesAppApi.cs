@@ -32,13 +32,21 @@ public sealed record RepositoryListDto(
     string RepositoryPath,
     bool IsActive);
 
+public sealed record DashboardCommitDto(
+    string SourceId,
+    string Summary,
+    DateTimeOffset? CommittedAt);
+
 public sealed record DashboardRowDto(
     string Repository,
     string? DisplayName,
-    int DocumentsCount,
-    int JobsCount,
     DateTimeOffset? LastGeneratedAt,
-    string LastJobStatus);
+    string BaseTag,
+    string TargetTag,
+    IReadOnlyList<DashboardCommitDto>? Commits)
+{
+    public IReadOnlyList<DashboardCommitDto> CommitList => Commits ?? [];
+}
 
 public sealed record GenerateNotesResult(bool Success, Guid? DocumentId, string Message);
 

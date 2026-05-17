@@ -6,6 +6,8 @@ using ReleaseNotes.Application.Models;
 using ReleaseNotes.Infrastructure;
 using ReleaseNotes.Infrastructure.Persistence;
 using ReleaseNotes.Infrastructure.Persistence.Entities;
+using static ReleaseNotes.Infrastructure.Persistence.ReleaseNoteJson;
+using ReleaseNotes.Infrastructure.Utilities;
 using ReleaseNotes.Web.Hubs;
 using ReleaseNotes.Web;
 using ReleaseNotes.Web.Models;
@@ -39,8 +41,8 @@ app.UseStaticFiles();
 app.UseAntiforgery();
 
 app.MapHub<ReleaseProgressHub>("/hubs/release-progress");
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
+// Minimal APIs must be registered before MapRazorComponents so /api/* is not swallowed by Blazor routing.
 app.MapPost("/api/release-notes/generate", async (
     GenerateEndpointRequest request,
     IGenerateReleaseNotesUseCase useCase,
@@ -53,13 +55,16 @@ app.MapPost("/api/release-notes/generate", async (
             return Results.BadRequest(new { message = "RepositoryConnectionId is required." });
         }
 
-        if (string.IsNullOrWhiteSpace(request.BaseTag) || string.IsNullOrWhiteSpace(request.TargetTag))
+        var baseT = request.BaseTag?.Trim() ?? string.Empty;
+        var targetT = request.TargetTag?.Trim() ?? string.Empty;
+        if (!GitIngestMode.IsFullRepositoryHistory(baseT, targetT)
+            && (string.IsNullOrWhiteSpace(baseT) || string.IsNullOrWhiteSpace(targetT)))
         {
-            return Results.BadRequest(new { message = "BaseTag and TargetTag are required." });
+            return Results.BadRequest(new { message = "BaseTag і TargetTag обов'язкові, або обидва вкажіть як * для повного збору комітів." });
         }
 
         var id = await useCase.ExecuteAsync(
-            new GenerateReleaseNotesRequest(request.RepositoryConnectionId, request.BaseTag.Trim(), request.TargetTag.Trim(), cancellationToken),
+            new GenerateReleaseNotesRequest(request.RepositoryConnectionId, baseT, targetT, cancellationToken),
             cancellationToken);
         return Results.Accepted($"/api/release-notes/{id}", new { id });
     }
@@ -71,27 +76,35 @@ app.MapPost("/api/release-notes/generate", async (
 
 app.MapGet("/api/dashboard/repositories", async (ReleaseNotesDbContext db, CancellationToken cancellationToken) =>
 {
+    const int maxCommitsPerRepo = 300;
+
     var documents = await db.Documents.AsNoTracking().ToListAsync(cancellationToken);
-    var jobs = await db.Jobs.AsNoTracking().ToListAsync(cancellationToken);
     var connections = await db.RepositoryConnections.AsNoTracking().ToListAsync(cancellationToken);
     var pathToDisplay = connections
-        .GroupBy(c => c.RepositoryPath)
+        .GroupBy(c => RepositoryPathNormalizer.Normalize(c.RepositoryPath))
         .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.UpdatedAt).First().DisplayName);
 
     var byRepo = documents
-        .GroupBy(x => x.Repository)
+        .GroupBy(x => RepositoryPathNormalizer.Normalize(x.Repository))
         .Select(g =>
         {
-            var repoJobs = jobs.Where(j => j.Repository == g.Key).OrderByDescending(j => j.CreatedAt).ToList();
-            var latestJob = repoJobs.FirstOrDefault();
+            var latestDoc = g.OrderByDescending(d => d.GeneratedAt).First().ToModel();
+            var commits = latestDoc.Entries
+                .OrderByDescending(e => IsValidCommitDate(e.CommittedAt) ? e.CommittedAt : latestDoc.GeneratedAt)
+                .Take(maxCommitsPerRepo)
+                .Select(e => new DashboardCommitItem(
+                    e.SourceId,
+                    e.Summary,
+                    IsValidCommitDate(e.CommittedAt) ? e.CommittedAt : null))
+                .ToList();
 
             return new RepositoryDashboardItem(
                 g.Key,
                 pathToDisplay.GetValueOrDefault(g.Key),
-                g.Count(),
-                repoJobs.Count,
-                g.Max(d => d.GeneratedAt),
-                latestJob?.Status ?? "Unknown");
+                latestDoc.GeneratedAt,
+                latestDoc.BaseTag,
+                latestDoc.TargetTag,
+                commits);
         })
         .OrderByDescending(x => x.LastGeneratedAt)
         .ToList();
@@ -117,12 +130,20 @@ app.MapPost("/api/webhooks/github", async Task<IResult> (
     IGenerateReleaseNotesUseCase useCase,
     CancellationToken cancellationToken) =>
 {
-    if (payload.RepositoryConnectionId == Guid.Empty || string.IsNullOrWhiteSpace(payload.BaseTag) || string.IsNullOrWhiteSpace(payload.TargetTag))
+    if (payload.RepositoryConnectionId == Guid.Empty)
     {
-        return Results.BadRequest("RepositoryConnectionId, baseTag and targetTag are required.");
+        return Results.BadRequest("RepositoryConnectionId is required.");
     }
 
-    var id = await useCase.ExecuteAsync(new GenerateReleaseNotesRequest(payload.RepositoryConnectionId, payload.BaseTag.Trim(), payload.TargetTag.Trim(), cancellationToken), cancellationToken);
+    var baseT = payload.BaseTag?.Trim() ?? string.Empty;
+    var targetT = payload.TargetTag?.Trim() ?? string.Empty;
+    if (!GitIngestMode.IsFullRepositoryHistory(baseT, targetT)
+        && (string.IsNullOrWhiteSpace(baseT) || string.IsNullOrWhiteSpace(targetT)))
+    {
+        return Results.BadRequest("baseTag and targetTag are required, or both set to * for full history.");
+    }
+
+    var id = await useCase.ExecuteAsync(new GenerateReleaseNotesRequest(payload.RepositoryConnectionId, baseT, targetT, cancellationToken), cancellationToken);
     return Results.Ok(new { id });
 });
 
@@ -152,12 +173,27 @@ app.MapPost("/api/repositories", async (RepositoryConnectionRequest request, Rel
         return Results.BadRequest("DisplayName, Provider and RepositoryPath are required.");
     }
 
+    var provider = request.Provider.Trim().ToLowerInvariant();
+    var repoPath = request.RepositoryPath.Trim();
+    if (string.Equals(provider, "github", StringComparison.Ordinal))
+    {
+        try
+        {
+            repoPath = RepositoryPathNormalizer.Normalize(repoPath);
+            RepositoryPathNormalizer.ParseOwnerRepo(repoPath);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
     var entity = new RepositoryConnectionEntity
     {
         Id = Guid.NewGuid(),
         DisplayName = request.DisplayName.Trim(),
-        Provider = request.Provider.Trim().ToLowerInvariant(),
-        RepositoryPath = request.RepositoryPath.Trim(),
+        Provider = provider,
+        RepositoryPath = repoPath,
         AccessToken = string.IsNullOrWhiteSpace(request.AccessToken) ? null : request.AccessToken.Trim(),
         IsActive = request.IsActive,
         CreatedAt = DateTimeOffset.UtcNow,
@@ -165,7 +201,14 @@ app.MapPost("/api/repositories", async (RepositoryConnectionRequest request, Rel
     };
 
     db.RepositoryConnections.Add(entity);
-    await db.SaveChangesAsync(cancellationToken);
+    try
+    {
+        await db.SaveChangesAsync(cancellationToken);
+    }
+    catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+    {
+        return Results.Conflict(new { message = "Репозиторій з таким провайдером і Repository Path уже є в базі. Відредагуйте існуючий запис або видаліть дублікат." });
+    }
 
     return Results.Created($"/api/repositories/{entity.Id}", new
     {
@@ -187,14 +230,37 @@ app.MapPut("/api/repositories/{id:guid}", async (Guid id, RepositoryConnectionRe
         return Results.NotFound();
     }
 
+    var provider = request.Provider.Trim().ToLowerInvariant();
+    var repoPath = request.RepositoryPath.Trim();
+    if (string.Equals(provider, "github", StringComparison.Ordinal))
+    {
+        try
+        {
+            repoPath = RepositoryPathNormalizer.Normalize(repoPath);
+            RepositoryPathNormalizer.ParseOwnerRepo(repoPath);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
     entity.DisplayName = request.DisplayName.Trim();
-    entity.Provider = request.Provider.Trim().ToLowerInvariant();
-    entity.RepositoryPath = request.RepositoryPath.Trim();
+    entity.Provider = provider;
+    entity.RepositoryPath = repoPath;
     entity.AccessToken = string.IsNullOrWhiteSpace(request.AccessToken) ? null : request.AccessToken.Trim();
     entity.IsActive = request.IsActive;
     entity.UpdatedAt = DateTimeOffset.UtcNow;
 
-    await db.SaveChangesAsync(cancellationToken);
+    try
+    {
+        await db.SaveChangesAsync(cancellationToken);
+    }
+    catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+    {
+        return Results.Conflict(new { message = "Такий провайдер і Repository Path уже зайняті іншим записом." });
+    }
+
     return Results.Ok(new
     {
         entity.Id,
@@ -250,5 +316,7 @@ app.MapPost("/api/integrations", async (ServiceIntegrationRequest request, Relea
     await db.SaveChangesAsync(cancellationToken);
     return Results.Created($"/api/integrations/{entity.Id}", entity);
 });
+
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

@@ -284,6 +284,14 @@ body {
     margin-top: 16px;
 }
 
+.tab-panel[hidden] {
+    display: none !important;
+}
+
+.tab-panel:not([hidden]) {
+    display: block;
+}
+
 .metrics {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -351,8 +359,123 @@ th {
     gap: 12px;
 }
 
+.dashboard-repos {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.repo-card-wide {
+    width: 100%;
+}
+
+.repo-card-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.repo-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    font-size: 13px;
+}
+
+.commit-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.commit-list-item {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    align-items: start;
+}
+
+.commit-list-item:last-child {
+    border-bottom: 0;
+}
+
+.commit-date {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.commit-summary {
+    margin: 0 0 4px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.commit-sha {
+    font-size: 12px;
+    color: var(--accent);
+}
+
+.commit-sha.mono {
+    color: var(--muted);
+}
+
+.commit-date-cell {
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--muted);
+}
+
 .repo-card h3 {
     margin-top: 0;
+}
+
+.commits-heading {
+    margin: 20px 0 8px;
+    font-size: 1rem;
+}
+
+.commits-scroll {
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-top: 8px;
+}
+
+.commits-table {
+    margin: 0;
+}
+
+.commits-table th {
+    position: sticky;
+    top: 0;
+    background: var(--card);
+    z-index: 1;
+}
+
+td.mono {
+    font-family: ui-monospace, Consolas, monospace;
+    white-space: nowrap;
+}
+
+.commits-table a {
+    color: var(--accent);
+}
+
+.ai-summary {
+    margin-top: 12px;
+    line-height: 1.45;
 }
 
 @media (max-width: 900px) {

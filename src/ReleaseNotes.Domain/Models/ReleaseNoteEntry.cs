@@ -7,4 +7,5 @@ public sealed record ReleaseNoteEntry(
     ChangeCategory Category,
     string Summary,
     bool IsBreakingChange,
-    double Confidence);
+    double Confidence,
+    DateTimeOffset CommittedAt = default);

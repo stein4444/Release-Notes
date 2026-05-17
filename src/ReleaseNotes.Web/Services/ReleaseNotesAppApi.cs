@@ -61,7 +61,13 @@ public sealed class ReleaseNotesAppApi(HttpClient http) : IReleaseNotesAppApi
             ? await http.PostAsJsonAsync("/api/repositories", payload, cancellationToken)
             : await http.PutAsJsonAsync($"/api/repositories/{dto.Id}", payload, cancellationToken);
 
-        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(body)
+                ? $"Збереження репозиторію: {(int)response.StatusCode} {response.ReasonPhrase}."
+                : body);
+        }
     }
 
     public async Task DeleteRepositoryAsync(Guid id, CancellationToken cancellationToken = default)

@@ -17,15 +17,19 @@ public sealed class ReleaseNotesSchedulerService(
             try
             {
                 var scheduler = options.Value;
-                if (scheduler.Enabled && scheduler.RepositoryConnectionId != Guid.Empty &&
-                    !string.IsNullOrWhiteSpace(scheduler.BaseTag) &&
-                    !string.IsNullOrWhiteSpace(scheduler.TargetTag))
+                var baseT = scheduler.BaseTag?.Trim() ?? string.Empty;
+                var targetT = scheduler.TargetTag?.Trim() ?? string.Empty;
+                var canRun = scheduler.Enabled
+                             && scheduler.RepositoryConnectionId != Guid.Empty
+                             && (GitIngestMode.IsFullRepositoryHistory(baseT, targetT)
+                                 || (!string.IsNullOrWhiteSpace(baseT) && !string.IsNullOrWhiteSpace(targetT)));
+                if (canRun)
                 {
                     await useCase.ExecuteAsync(
                         new GenerateReleaseNotesRequest(
                             scheduler.RepositoryConnectionId,
-                            scheduler.BaseTag.Trim(),
-                            scheduler.TargetTag.Trim(),
+                            baseT,
+                            targetT,
                             stoppingToken),
                         stoppingToken);
                 }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using ReleaseNotes.Application.Models;
 using ReleaseNotes.Domain.Models;
 using ReleaseNotes.Web.Services;
 
@@ -6,12 +7,14 @@ namespace ReleaseNotes.Web.Components.Features;
 
 public partial class ReleaseNotesGenerator
 {
+    private const int MaxCommitsInUi = 2_000;
+
     [Inject] public IReleaseNotesAppApi Api { get; set; } = default!;
 
     private GenerateModel _model = new()
     {
-        BaseTag = "v1.0.0",
-        TargetTag = "v1.1.0"
+        BaseTag = GitIngestMode.FullHistoryMarker,
+        TargetTag = GitIngestMode.FullHistoryMarker,
     };
 
     private List<RepositoryListDto> _repositories = [];
@@ -22,6 +25,9 @@ public partial class ReleaseNotesGenerator
     private string _status = string.Empty;
     private bool IsGenerating { get; set; }
     private ReleaseNoteDocument? _document;
+    private IReadOnlyList<ReleaseNoteEntry> _commitsForUi = [];
+    private int _commitsTotal;
+    private bool _commitsTruncated;
 
     private string StatusClass => _status.Contains("помилка", StringComparison.OrdinalIgnoreCase)
         ? "error"
@@ -45,6 +51,9 @@ public partial class ReleaseNotesGenerator
         IsGenerating = true;
         _status = "Генерація запущена...";
         _document = null;
+        _commitsForUi = [];
+        _commitsTotal = 0;
+        _commitsTruncated = false;
 
         try
         {
@@ -57,6 +66,7 @@ public partial class ReleaseNotesGenerator
 
             await Task.Delay(TimeSpan.FromSeconds(1));
             _document = await Api.GetReleaseNoteDocumentAsync(result.DocumentId.Value);
+            RefreshCommitListUi();
             _status = _document is null ? "Результат ще не готовий." : "Готово.";
         }
         catch (Exception ex)
@@ -67,6 +77,61 @@ public partial class ReleaseNotesGenerator
         {
             IsGenerating = false;
         }
+    }
+
+    private void RefreshCommitListUi()
+    {
+        var entries = _document?.Entries;
+        if (entries is null || entries.Count == 0)
+        {
+            _commitsForUi = [];
+            _commitsTotal = 0;
+            _commitsTruncated = false;
+            return;
+        }
+
+        _commitsTotal = entries.Count;
+        _commitsTruncated = _commitsTotal > MaxCommitsInUi;
+        _commitsForUi = _commitsTruncated
+            ? entries.Take(MaxCommitsInUi).ToList()
+            : entries.ToList();
+    }
+
+    private string? CommitUrl(string commitId)
+    {
+        if (_document is null || string.IsNullOrWhiteSpace(commitId))
+        {
+            return null;
+        }
+
+        return BuildGitHubCommitUrl(_document.Repository, commitId);
+    }
+
+    private static string ShortHash(string id) => id.Length > 7 ? id[..7] : id;
+
+    private static string FormatCommitDate(DateTimeOffset value) =>
+        value != default && value.Year >= 1980 ? value.LocalDateTime.ToString("g") : "—";
+
+    private static string? BuildGitHubCommitUrl(string repositoryPath, string commitId)
+    {
+        if (string.IsNullOrWhiteSpace(commitId))
+        {
+            return null;
+        }
+
+        var path = repositoryPath.Trim().Trim('/');
+        if (path.Contains("://", StringComparison.Ordinal) ||
+            path.Contains("\\", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (path.Count(c => c == '/') != 1)
+        {
+            return null;
+        }
+
+        return $"https://github.com/{path}/commit/{commitId.Trim()}";
     }
 
     private sealed class GenerateModel

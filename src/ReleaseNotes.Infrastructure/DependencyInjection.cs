@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Polly;
-using Polly.Extensions.Http;
 using ReleaseNotes.Application.Interfaces;
 using ReleaseNotes.Infrastructure.Clients;
 using ReleaseNotes.Infrastructure.Options;
@@ -32,13 +30,7 @@ public static class DependencyInjection
 
         services.AddMemoryCache();
 
-        var retryPolicy = HttpPolicyExtensions
-            .HandleTransientHttpError()
-            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(retryAttempt));
-
-        services.AddHttpClient<IGitSourceClient, GitHubApiClient>()
-            .AddPolicyHandler(retryPolicy)
-            .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+        services.AddScoped<IGitSourceClient, GitSharpGitSourceClient>();
 
         services.AddScoped<IRepositoryConnectionReader, RepositoryConnectionReader>();
         services.AddScoped<IRuleEngine, RuleEngine>();

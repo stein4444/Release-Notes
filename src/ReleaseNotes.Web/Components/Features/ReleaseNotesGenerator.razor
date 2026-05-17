@@ -1,6 +1,6 @@
 <section class="card">
     <h3>Генерація Release Notes</h3>
-    <p class="muted">Оберіть збережене підключення GitHub з бази та діапазон тегів. Якщо для запису токен не заданий, використовується глобальний <code>GitHub:Token</code> із конфігурації сервера.</p>
+    <p class="muted">Оберіть підключення GitHub. Для <b>усіх комітів</b> уведіть <code>*</code> у Base і Target (обмеження <code>GitHub:MaxFullHistoryCommits</code>). Для діапазону — два теги/SHA. Токен з запису або глобальний <code>GitHub:Token</code>.</p>
 
     <EditForm Model="_model" OnValidSubmit="GenerateAsync" FormName="generate-release-notes-form">
         <DataAnnotationsValidator />
@@ -17,11 +17,11 @@
             </div>
             <div class="field">
                 <label>Base Tag</label>
-                <InputText @bind-Value="_model.BaseTag" placeholder="v1.0.0" />
+                <InputText @bind-Value="_model.BaseTag" placeholder="* = усі коміти" />
             </div>
             <div class="field">
                 <label>Target Tag</label>
-                <InputText @bind-Value="_model.TargetTag" placeholder="v1.1.0" />
+                <InputText @bind-Value="_model.TargetTag" placeholder="* = усі коміти" />
             </div>
         </div>
         <div class="actions">
@@ -41,6 +41,47 @@
                 <p><b>Repository:</b> @_document.Repository</p>
                 <p><b>Range:</b> @_document.BaseTag → @_document.TargetTag</p>
                 <p><b>Generated:</b> @_document.GeneratedAt.LocalDateTime.ToString("g")</p>
+                @if (!string.IsNullOrWhiteSpace(_document.AiSummary))
+                {
+                    <p class="ai-summary"><b>Підсумок:</b> @_document.AiSummary</p>
+                }
+                <h5 class="commits-heading">Коміти (@_commitsTotal)</h5>
+                @if (_commitsTruncated)
+                {
+                    <p class="muted">Показано перші @_commitsForUi.Count з @_commitsTotal (обмеження UI).</p>
+                }
+                <div class="commits-scroll">
+                    <table class="commits-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>SHA</th>
+                                <th>Повідомлення</th>
+                                <th>Категорія</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var e in _commitsForUi)
+                            {
+                                <tr>
+                                    <td class="commit-date-cell">@(FormatCommitDate(e.CommittedAt))</td>
+                                    <td class="mono">
+                                        @if (CommitUrl(e.SourceId) is { } linkUrl)
+                                        {
+                                            <a href="@linkUrl" target="_blank" rel="noopener noreferrer">@ShortHash(e.SourceId)</a>
+                                        }
+                                        else
+                                        {
+                                            @ShortHash(e.SourceId)
+                                        }
+                                    </td>
+                                    <td>@e.Summary</td>
+                                    <td>@e.Category</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             </article>
         </div>
     }

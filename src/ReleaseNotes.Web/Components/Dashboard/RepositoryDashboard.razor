@@ -1,6 +1,6 @@
 <section class="card">
     <div class="actions">
-        <button class="btn btn-secondary" type="button" @onclick="LoadDashboardAsync">Оновити дашборд</button>
+        <button class="btn btn-secondary" type="button" @onclick="LoadDashboardAsync">Оновити список комітів</button>
         @if (!string.IsNullOrWhiteSpace(Status))
         {
             <p class="status @StatusClass">@Status</p>
@@ -8,19 +8,55 @@
     </div>
 </section>
 
-<section class="repo-grid">
+<section class="dashboard-repos">
     @foreach (var item in Items)
     {
-        <article class="card repo-card">
-            <h3>@(string.IsNullOrWhiteSpace(item.DisplayName) ? item.Repository : item.DisplayName)</h3>
-            @if (!string.IsNullOrWhiteSpace(item.DisplayName))
+        <article class="card repo-card repo-card-wide">
+            <header class="repo-card-header">
+                <div>
+                    <h3>@(string.IsNullOrWhiteSpace(item.DisplayName) ? item.Repository : item.DisplayName)</h3>
+                    @if (!string.IsNullOrWhiteSpace(item.DisplayName))
+                    {
+                        <p class="muted repo-path">@item.Repository</p>
+                    }
+                </div>
+                <div class="repo-meta">
+                    <span class="muted">Діапазон: <b>@item.BaseTag → @item.TargetTag</b></span>
+                    @if (item.LastGeneratedAt is { } genAt)
+                    {
+                        <span class="muted">Оновлено: <b>@genAt.LocalDateTime.ToString("g")</b></span>
+                    }
+                </div>
+            </header>
+
+            @if (item.Commits.Count == 0)
             {
-                <p class="muted repo-path">@item.Repository</p>
+                <p class="muted">Комітів немає. Згенеруйте release notes на вкладці «Генерація».</p>
             }
-            <p>Документів: <b>@item.DocumentsCount</b></p>
-            <p>Запусків: <b>@item.JobsCount</b></p>
-            <p>Останній статус: <b>@item.LastJobStatus</b></p>
-            <p>Остання генерація: <b>@(item.LastGeneratedAt?.LocalDateTime.ToString("g") ?? "-")</b></p>
+            else
+            {
+                <ul class="commit-list">
+                    @foreach (var c in item.CommitList)
+                    {
+                        <li class="commit-list-item">
+                            <time class="commit-date" datetime="@FormatIso(c.CommittedAt)">
+                                @FormatCommitDate(c.CommittedAt)
+                            </time>
+                            <div class="commit-body">
+                                <p class="commit-summary">@c.Summary</p>
+                                @if (CommitUrl(item.Repository, c.SourceId) is { } url)
+                                {
+                                    <a class="commit-sha mono" href="@url" target="_blank" rel="noopener noreferrer">@ShortHash(c.SourceId)</a>
+                                }
+                                else
+                                {
+                                    <span class="commit-sha mono">@ShortHash(c.SourceId)</span>
+                                }
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
         </article>
     }
     @if (Items.Count == 0)
