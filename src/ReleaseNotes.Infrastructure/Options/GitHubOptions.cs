@@ -7,5 +7,5 @@ public sealed class GitHubOptions
     public string Token { get; set; } = string.Empty;
 
     /// <summary>Максимум комітів у режимі повного збору (<c>git rev-list --all</c>).</summary>
-    public int MaxFullHistoryCommits { get; set; } = 50_000;
+    public int MaxFullHistoryCommits { get; set; } = 1_000;
 }

@@ -1,6 +1,6 @@
 <section class="card">
     <h3>Генерація Release Notes</h3>
-    <p class="muted">Оберіть підключення GitHub. Для <b>усіх комітів</b> уведіть <code>*</code> у Base і Target (обмеження <code>GitHub:MaxFullHistoryCommits</code>). Для діапазону — два теги/SHA. Токен з запису або глобальний <code>GitHub:Token</code>.</p>
+    <p class="muted">Оберіть підключення GitHub і вкажіть два теги або SHA (Base → Target). Для <b>усіх комітів</b> — <code>*</code> в обох полях (ліміт <code>GitHub:MaxFullHistoryCommits</code>). Дані беруться через GitHub API, без clone. Токен — у підключенні або <code>GitHub:Token</code>.</p>
 
     <EditForm Model="_model" OnValidSubmit="GenerateAsync" FormName="generate-release-notes-form">
         <DataAnnotationsValidator />
@@ -25,7 +25,7 @@
             </div>
         </div>
         <div class="actions">
-            <button class="btn" type="submit" disabled="@IsGenerating">@( IsGenerating ? "Generating..." : "Generate Notes")</button>
+            <button class="btn" type="submit" disabled="@IsGenerating">@( IsGenerating ? "Генерація..." : "Згенерувати")</button>
             @if (!string.IsNullOrWhiteSpace(_status))
             {
                 <p class="status @StatusClass">@_status</p>

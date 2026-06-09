@@ -31,8 +31,13 @@ public static class DependencyInjection
         });
 
         services.AddMemoryCache();
+        services.AddHttpClient(nameof(GitHubApiGitSourceClient), (sp, client) =>
+        {
+            var apiBaseUrl = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<GitHubOptions>>().Value.ApiBaseUrl;
+            client.BaseAddress = new Uri(apiBaseUrl.TrimEnd('/') + "/");
+        });
 
-        services.AddScoped<IGitSourceClient, GitSharpGitSourceClient>();
+        services.AddScoped<IGitSourceClient, GitHubApiGitSourceClient>();
 
         services.AddScoped<IRepositoryConnectionReader, RepositoryConnectionReader>();
         services.AddScoped<IRuleEngine, RuleEngine>();

@@ -11,11 +11,7 @@ public partial class ReleaseNotesGenerator
 
     [Inject] public IReleaseNotesAppApi Api { get; set; } = default!;
 
-    private GenerateModel _model = new()
-    {
-        BaseTag = GitIngestMode.FullHistoryMarker,
-        TargetTag = GitIngestMode.FullHistoryMarker,
-    };
+    private GenerateModel _model = new();
 
     private List<RepositoryListDto> _repositories = [];
 
@@ -45,6 +41,15 @@ public partial class ReleaseNotesGenerator
         if (_model.RepositoryConnectionId == Guid.Empty)
         {
             _status = "Оберіть репозиторій із бази (меню ☰ → Репозиторії).";
+            return;
+        }
+
+        var baseTag = _model.BaseTag?.Trim() ?? string.Empty;
+        var targetTag = _model.TargetTag?.Trim() ?? string.Empty;
+        if (!GitIngestMode.IsFullRepositoryHistory(baseTag, targetTag)
+            && (string.IsNullOrWhiteSpace(baseTag) || string.IsNullOrWhiteSpace(targetTag)))
+        {
+            _status = "Вкажіть Base Tag і Target Tag, або обидва * для повної історії.";
             return;
         }
 
